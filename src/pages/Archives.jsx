@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DatabaseIcon, Search, Filter, Eye, Trash2, MessageCircle, X, Sparkles, Loader2, Printer, Share2, Download, CheckSquare, Square, ZoomIn, ZoomOut, RotateCw, FileImage, Trash, RotateCcw, XCircle } from 'lucide-react';
 import { listDocuments, listTrash, deleteDocument, restoreDocument, permanentlyDeleteDocument, getDocument } from '../services/documentsService';
 import { countOpenAnomalies } from '../services/anomaliesService';
+import { getDocumentUrl } from '../services/storageService';
 import AnomaliesLiasse, { BadgeConformite } from '../components/AnomaliesLiasse';
 import { listCategories } from '../services/categoriesService';
 import { listServiceGroups } from '../services/servicesService';
@@ -46,6 +47,7 @@ export default function Archives({ onBack, focusDocumentId = null, onFocusHandle
   const [shareAccessLevel, setShareAccessLevel] = useState('Lecture');
   const [trashMode, setTrashMode] = useState(false);
   const [anomaliesParDoc, setAnomaliesParDoc] = useState({});
+  const [fichierSigne, setFichierSigne] = useState(null);
   const { openChat } = useChat();
   const { session, isSuperAdmin, canDeleteDocuments } = useSession();
 
@@ -139,9 +141,24 @@ export default function Archives({ onBack, focusDocumentId = null, onFocusHandle
 
   const isPdfFile = (url) => /\.pdf($|\?)/i.test(url || '');
 
+  // Le bucket est privé : chaque consultation passe par une URL signée,
+  // délivrée seulement si les politiques RLS autorisent l'utilisateur.
+  useEffect(() => {
+    if (!preview?.file_url) {
+      setFichierSigne(null);
+      return;
+    }
+    let vivant = true;
+    setFichierSigne(null);
+    getDocumentUrl(preview.file_url)
+      .then(url => { if (vivant) setFichierSigne(url); })
+      .catch(() => { if (vivant) setFichierSigne(null); });
+    return () => { vivant = false; };
+  }, [preview?.id, preview?.file_url]);
+
   const printPreviewFile = () => {
-    if (!preview?.file_url) return;
-    const win = window.open(preview.file_url, '_blank');
+    if (!fichierSigne) return;
+    const win = window.open(fichierSigne, '_blank');
     if (win) setTimeout(() => { try { win.print(); } catch { /* impression annulée ou bloquée */ } }, 800);
   };
 
@@ -295,6 +312,7 @@ export default function Archives({ onBack, focusDocumentId = null, onFocusHandle
       const exportData = documents.map((doc, index) => ({
         'N°': index + 1,
         'Document': doc.name,
+        'Fichier d\'origine': doc.original_name || '—',
         'Nature': doc.categories?.name || doc.doc_type || 'Non classé',
         'Service': doc.services?.name || '—',
         'Date': formatDate(doc),
@@ -372,7 +390,7 @@ export default function Archives({ onBack, focusDocumentId = null, onFocusHandle
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher (titre, expéditeur, objet, résumé, contenu)..."
+            placeholder="Rechercher (titre, nom du fichier, expéditeur, objet, résumé, contenu)..."
             className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg pl-8 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-slate-400 dark:focus:border-white/30 transition-all"
           />
         </div>
@@ -584,6 +602,14 @@ export default function Archives({ onBack, focusDocumentId = null, onFocusHandle
                 </td>
                 <td className="px-4 py-3 align-middle min-w-0 max-w-[280px] border-l border-slate-200 dark:border-white/10">
                   <p className="text-slate-900 dark:text-white text-sm font-medium truncate">{doc.name}</p>
+                  {doc.original_name && doc.original_name !== doc.name && (
+                    <p
+                      className="text-[11px] text-slate-400 dark:text-slate-500 font-mono truncate"
+                      title={`Nom du fichier d'origine : ${doc.original_name}`}
+                    >
+                      {doc.original_name}
+                    </p>
+                  )}
                   {(doc.sender || doc.subject) && (
                     <p className="text-slate-500 text-[11px] truncate mt-0.5">
                       {doc.sender && <span className="text-slate-500">{doc.sender}</span>}
@@ -660,7 +686,14 @@ export default function Archives({ onBack, focusDocumentId = null, onFocusHandle
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
-              <h3 className="text-slate-900 dark:text-white font-bold text-lg flex-1 truncate">{preview.name}</h3>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-slate-900 dark:text-white font-bold text-lg truncate">{preview.name}</h3>
+                {preview.original_name && preview.original_name !== preview.name && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate">
+                    Fichier d'origine : {preview.original_name}
+                  </p>
+                )}
+              </div>
               <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white">
                 <X className="h-5 w-5" />
               </button>
@@ -734,16 +767,20 @@ export default function Archives({ onBack, focusDocumentId = null, onFocusHandle
                 </div>
 
                 <div className="bg-slate-200/50 dark:bg-slate-950/40 rounded-xl overflow-auto max-h-[50vh] flex items-center justify-center p-3">
-                  {isPdfFile(preview.file_url) ? (
+                  {!fichierSigne ? (
+                    <div className="flex items-center justify-center gap-2 py-10 text-xs text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Ouverture sécurisée de la pièce…
+                    </div>
+                  ) : isPdfFile(preview.file_url) ? (
                     <iframe
-                      src={preview.file_url}
+                      src={fichierSigne}
                       title={preview.name}
                       style={{ width: `${docZoom * 100}%`, minHeight: '60vh' }}
                       className="bg-white rounded shadow-lg border-0"
                     />
                   ) : (
                     <img
-                      src={preview.file_url}
+                      src={fichierSigne}
                       alt={`Pièce scannée — ${preview.name}`}
                       style={{ transform: `scale(${docZoom}) rotate(${docRotation}deg)`, transition: 'transform 0.2s ease' }}
                       className="rounded shadow-lg max-w-full h-auto"

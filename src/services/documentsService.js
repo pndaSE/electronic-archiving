@@ -34,8 +34,8 @@ function buildDocumentsQuery({ search = '', categoryId = null, serviceId = null,
   if (search) {
     const term = search.replace(/[%,()]/g, ' ').trim();
     query = query.or(
-      `name.ilike.%${term}%,sender.ilike.%${term}%,subject.ilike.%${term}%,` +
-      `ai_summary.ilike.%${term}%,content_text.ilike.%${term}%`
+      `name.ilike.%${term}%,original_name.ilike.%${term}%,sender.ilike.%${term}%,` +
+      `subject.ilike.%${term}%,ai_summary.ilike.%${term}%,content_text.ilike.%${term}%`
     );
   }
   if (categoryId) query = query.eq('category_id', categoryId);

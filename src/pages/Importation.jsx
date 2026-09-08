@@ -273,6 +273,7 @@ export default function Importation({ onBack }) {
 
       const newDoc = await createDocument({
         name: item.form.title || item.name,
+        original_name: item.name,
         category_id: item.form.categoryId || null,
         service_id: item.form.serviceId || null,
         doc_type: item.docType,
@@ -417,13 +418,21 @@ export default function Importation({ onBack }) {
                 </div>
 
                 <div className="flex flex-col gap-2.5">
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 text-slate-600 dark:text-slate-300 text-xs flex items-start gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
-                    <span>
-                      Fiche pré-remplie par l'agent IA — vérifiez et corrigez si besoin.
-                      {item.aiResult?.demo && !item.aiResult?.fallbackReason && <span className="ml-2 text-amber-500 dark:text-amber-300">(mode démo)</span>}
-                    </span>
-                  </div>
+                  {item.aiResult?.demo && !item.aiResult?.fallbackReason ? (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2">
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>Clé IA non configurée</strong> — la fiche n'a pas pu être pré-remplie automatiquement.
+                        Configurez <code className="bg-amber-500/20 rounded px-1">ANTHROPIC_API_KEY</code> dans les secrets de votre projet Supabase
+                        (Tableau de bord → Edge Functions → Secrets) puis relancez l'analyse.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 text-slate-600 dark:text-slate-300 text-xs flex items-start gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
+                      <span>Fiche pré-remplie par l'agent IA — vérifiez et corrigez si besoin.</span>
+                    </div>
+                  )}
 
                   <div className="flex flex-col gap-1">
                     <span className={labelCls}><ShieldAlert className="h-3 w-3" /> Contrôles métier</span>

@@ -184,6 +184,7 @@ export default function ScanDirect({ onBack }) {
 
       const newDoc = await createDocument({
         name: form.title || scanData.fileName,
+        original_name: scanData.fileName,
         category_id: form.categoryId || null,
         doc_type: scanData.docType,
         source: 'scan',
